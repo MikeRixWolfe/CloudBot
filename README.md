@@ -33,7 +33,7 @@ Specify the path as /path/to/repository/cloudbot/__main__.py, where `cloudbot` i
 
 ### Documentation
 
-The CloudBot documentation is currently somewhat outdated and may not be correct. If you need any help, please visit our [IRC channel](https://webchat.snoonet.org/#gonzobot-dev) and we will be happy to assist you.
+The CloudBot documentation is currently somewhat outdated and may not be correct.
 
 To write your own plugins, visit the [Plugins Wiki Page](https://github.com/CloudBotIRC/CloudBot/wiki/Writing-your-first-command-plugin).
 
