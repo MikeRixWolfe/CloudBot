@@ -41,16 +41,6 @@ To write your own plugins, visit the [Plugins Wiki Page](https://github.com/Clou
 
 More at the [Wiki Main Page](https://github.com/CloudBotIRC/CloudBot/wiki).
 
-### Support
-
-The developers reside in [#gonzobot-dev](https://webchat.snoonet.org/#gonzobot-dev) on [Snoonet](https://snoonet.org) and would be glad to help you.
-
-If you think you have found a bug/have a idea/suggestion, please **open a issue** here on Github and contact us on IRC!
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md)
-
 ## License
 
 CloudBot is **licensed** under the **GPL v3** license. The terms are as follows.
