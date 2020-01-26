@@ -2,7 +2,7 @@
 
 CloudBot is a simple, fast, expandable open-source Python IRC Bot!
 
-This branch has diverged from the upstream.
+This fork has diverged from the upstream.
 
 ## Installing CloudBot
 
