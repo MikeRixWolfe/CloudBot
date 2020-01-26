@@ -1,18 +1,10 @@
 # CloudBot
-[![Build Status](https://travis-ci.com/TotallyNotRobots/CloudBot.svg?branch=gonzobot)](https://travis-ci.com/TotallyNotRobots/CloudBot) 
-[![CodeFactor](https://www.codefactor.io/repository/github/totallynotrobots/cloudbot/badge/gonzobot)](https://www.codefactor.io/repository/github/totallynotrobots/cloudbot/overview/gonzobot) 
-[![codebeat badge](https://codebeat.co/badges/3e5866e3-fe94-4c92-9dd7-8fbd616bc2ac)](https://codebeat.co/projects/github-com-totallynotrobots-cloudbot-gonzobot) 
-[![codecov](https://codecov.io/gh/TotallyNotRobots/CloudBot/branch/gonzobot/graph/badge.svg)](https://codecov.io/gh/TotallyNotRobots/CloudBot) 
 
 CloudBot is a simple, fast, expandable open-source Python IRC Bot!
 
 ## Getting CloudBot
 
-There are currently four different branches of this repository, each with a different level of stability:
- - **gonzobot** *(stable)*: This branch contains everything in the **master** branch plus additional plugins added for Snoonet IRC. This branch is the currently maintained branch which will also contain many fixes for various bugs from the master branch.
- - **gonzobot-dev** *(unstable)*: This branch is based off of the **gonzobot** branch and includes new plugins that are not fully tested.
- - **master** *(stable (old))*: This branch contains stable, tested code. This branch is based directly on the upstream master branch and is not currently maintained.
- - **python3.4** *(unstable (old))*: This is the outdated testing branch from the upstream repo.
+This branch has diverged from the upstream.
 
 ## Installing CloudBot
 
