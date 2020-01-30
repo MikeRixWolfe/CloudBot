@@ -4,15 +4,6 @@ CloudBot is a simple, fast, expandable open-source Python IRC Bot!
 
 This fork has diverged from the upstream.
 
-## Installing CloudBot
-
-Firstly, CloudBot will only run on **Python 3.5.3 or higher**
-
-To install CloudBot on *nix (linux, etc), see [here](docs/installing/nix.md)
-
-To install CloudBot on Windows, see [here](docs/installing/win.md)
-
-
 ### Running CloudBot
 
 Before you run the bot, rename `config.json.default` to `config.json` and edit it with your preferred settings. You can check if your JSON is valid using [jsonlint.com](http://jsonlint.com/)!
@@ -28,16 +19,6 @@ Note that you can also run the `cloudbot/__main__.py` file directly, which will 
 python3 CloudBot/cloudbot/__main__.py
 ```
 Specify the path as /path/to/repository/cloudbot/__main__.py, where `cloudbot` is inside the repository directory.
-
-## Getting help with CloudBot
-
-### Documentation
-
-The CloudBot documentation is currently somewhat outdated and may not be correct.
-
-To write your own plugins, visit the [Plugins Wiki Page](https://github.com/CloudBotIRC/CloudBot/wiki/Writing-your-first-command-plugin).
-
-More at the [Wiki Main Page](https://github.com/CloudBotIRC/CloudBot/wiki).
 
 ## License
 
