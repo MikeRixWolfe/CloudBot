@@ -1,104 +1,43 @@
-import gzip
+import re
 import logging
-import os.path
-import shutil
-import socket
-import time
-
-import geoip2.database
-import geoip2.errors
 import requests
 
 from cloudbot import hook
-from cloudbot.util import async_util
-
-logger = logging.getLogger("cloudbot")
-
-DB_URL = "http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz"
-PATH = "./data/GeoLite2-City.mmdb"
+from cloudbot.bot import bot
 
 
-class GeoipReader:
-    def __init__(self):
-        self.reader = None
+formats = [
+    "{ip} seems to be located in {city}, {region_name} in {country_name}",
+    "{ip} seems to be located in {city} in {country_name}",
+    "{ip} seems to be located in {region_name} in {country_name}",
+    "{ip} seems to be located in {country_name}",
+    "Unable to locate geolocation information for the given location"
+]
 
 
-geoip_reader = GeoipReader()
+def fformat(args):
+    """find format string for args based on number of matches"""
+    def match():
+        for f in formats:
+            try:
+                yield f.format(**args), len(re.findall(r'(\{.*?\})',f))
+            except:
+                pass
+
+    return max(dict(match()).iteritems(), key=lambda x: (x[1], len(x[0])))[0]
 
 
-def fetch_db():
-    if os.path.exists(PATH):
-        os.remove(PATH)
-    r = requests.get(DB_URL, stream=True)
-    if r.status_code == 200:
-        with gzip.open(r.raw, 'rb') as infile:
-            with open(PATH, 'wb') as outfile:
-                shutil.copyfileobj(infile, outfile)
-
-
-def update_db():
-    """
-    Updates the DB.
-    """
-    if os.path.isfile(PATH):
-        # check if file is over 2 weeks old
-        if time.time() - os.path.getmtime(PATH) > (14 * 24 * 60 * 60):
-            # geoip is outdated, re-download
-            fetch_db()
-            return geoip2.database.Reader(PATH)
-        try:
-            return geoip2.database.Reader(PATH)
-        except geoip2.errors.GeoIP2Error:
-            # issue loading, geo
-            fetch_db()
-            return geoip2.database.Reader(PATH)
-
-    # no geoip file
-    fetch_db()
-    return geoip2.database.Reader(PATH)
-
-
-async def check_db(loop):
-    """
-    runs update_db in an executor thread and sets geoip_reader to the result
-    if this is run while update_db is already executing bad things will happen
-    """
-    if not geoip_reader.reader:
-        logger.info("Loading GeoIP database")
-        db = await loop.run_in_executor(None, update_db)
-        logger.info("Loaded GeoIP database")
-        geoip_reader.reader = db
-
-
-@hook.on_start
-async def load_geoip(loop):
-    async_util.wrap_future(check_db(loop), loop=loop)
-
-
+#@hook.api_key('ipapi')
 @hook.command
 async def geoip(text, reply, loop):
-    """<host|ip> - Looks up the physical location of <host|ip> using Maxmind GeoLite """
-    if not geoip_reader.reader:
-        return "GeoIP database is still loading, please wait a minute"
+    """geoip <IP address> - Gets the location of an IP address."""
+    api_key = bot.config.get_api_key("giphy")
+    url = "http://api.ipapi.com/%s" % (http.quote(text.encode('utf8'), safe=''))
 
     try:
-        ip = await loop.run_in_executor(None, socket.gethostbyname, text)
-    except socket.gaierror:
-        return "Invalid input."
+        data = requests.get(url, params={'access_key': api_key}).json()
+    except:
+        return "I couldn't find %s" % inp
 
-    try:
-        location_data = await loop.run_in_executor(None, geoip_reader.reader.city, ip)
-    except geoip2.errors.AddressNotFoundError:
-        return "Sorry, I can't locate that in my database."
+    return fformat(data).replace('in United', 'in the United')
 
-    data = {
-        "cc": location_data.country.iso_code or "N/A",
-        "country": location_data.country.name or "Unknown",
-        "city": location_data.city.name or "Unknown"
-    }
-
-    # add a region to the city if one is listed
-    if location_data.subdivisions.most_specific.name:
-        data["city"] += ", " + location_data.subdivisions.most_specific.name
-
-    reply("\x02Country:\x02 {country} ({cc}), \x02City:\x02 {city}".format(**data))

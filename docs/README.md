@@ -10,16 +10,13 @@ Welcome to CloudBot! This set of documentation is split into three folders.
 
 For each set of docs, a PDF and HTML version is also available.
 
-## Refresh
+## Developer
+* [Mike Wolfe](http://github.com/MikeRixWolfe)
 
-Refresh (this repo) is the newest CloudBot, which cleans up the internals of the bot and brings support for Python 3.4.
-
-## Developers
+### Thanks to
 * [Luke Rogers](http://git.io/theluke)
 * [neersighted](http://git.io/neersighted)
 * [daboross](http://git.io/dabo)
 * [foxlet](http://git.io/foxlet)
-
-### Thanks to
 * [rmmh](http://git.io/rmmh)
 * [The Noodle](https://github.com/thenoodle68)

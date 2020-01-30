@@ -1,28 +1,27 @@
-import codecs
-import os
 import random
 
 from cloudbot import hook
 from cloudbot.util import colors
 
-responses = []
+responses = ["$(dark_green, bold)It is certain",
+             "$(dark_green, bold)It is decidedly so",
+             "$(dark_green, bold)Signs point to yes",
+             "$(dark_green, bold)Without a doubt",
+             "$(dark_green, bold)You may rely on it",
+             #"Reply hazy, try again",
+             #"Ask again later",
+             #"Better not tell you now",
+             #"Cannot predict now",
+             #"Concentrate and ask again",
+             "$(dark_red, bold)Don't count on it",
+             "$(dark_red, bold)My reply is no",
+             "$(dark_red, bold)My sources say no",
+             "$(dark_red, bold)Outlook not so good",
+             "$(dark_red, bold)Very doubtful"]
 
 
-@hook.on_start()
-def load_responses(bot):
-    path = os.path.join(bot.data_dir, "8ball_responses.txt")
-    responses.clear()
-    with codecs.open(path, encoding="utf-8") as f:
-        responses.extend(
-            line.strip() for line in f.readlines()
-            if not line.startswith("//")
-        )
-
-
-@hook.command("8ball", "8", "eightball")
+@hook.command("8ball")
 async def eightball(action):
-    """<question> - asks the all knowing magic electronic eight ball <question>"""
-    magic = random.choice(responses)
-    message = colors.parse("shakes the magic 8 ball... {}".format(magic))
+    """8ball <question> - asks the all knowing magic electronic eight ball <question>"""
+    return colors.parse(random.choice(responses))
 
-    action(message)

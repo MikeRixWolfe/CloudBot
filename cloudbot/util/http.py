@@ -1,206 +1,187 @@
-# convenience wrapper for urllib2 & friends
-
-import http.cookiejar
+# convenience wrapper for urllib & friends
+import base64
+import binascii
+import hmac
 import json
-import urllib.error
-import urllib.parse
-import urllib.request
-import warnings
-from typing import Union
-from urllib.parse import quote_plus as _quote_plus
+import random
+import string
+import time
+import urllib
+import urllib.request as request
+import urllib.parse as parse
 
-from bs4 import BeautifulSoup
+from hashlib import sha1
+from urllib.parse import quote, quote_plus as _quote_plus
+from urllib.error import HTTPError, URLError
+
 from lxml import etree, html
-from multidict import MultiDict
-from yarl import URL
+from bs4 import BeautifulSoup
 
-# security
-parser = etree.XMLParser(resolve_entities=False, no_network=True)
+from http.cookiejar import CookieJar
+from html.parser import HTMLParser
 
-ua_cloudbot = 'Cloudbot/DEV http://github.com/CloudDev/CloudBot'
+ua_firefox = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.6) ' \
+             'Gecko/20070725 Firefox/2.0.0.6'
 
-ua_firefox = 'Mozilla/5.0 (Windows NT 6.1; WOW64; rv:17.0) Gecko/17.0' \
-             ' Firefox/17.0'
-ua_old_firefox = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; ' \
-                 'rv:1.8.1.6) Gecko/20070725 Firefox/2.0.0.6'
-ua_internetexplorer = 'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1)'
-ua_chrome = 'Mozilla/5.0 (X11; Linux i686) AppleWebKit/537.4 (KHTML, ' \
-            'like Gecko) Chrome/22.0.1229.79 Safari/537.4'
-
-jar = http.cookiejar.CookieJar()
+jar = CookieJar()
+h = HTMLParser()
 
 
 def get(*args, **kwargs):
-    if kwargs.get("decode", True):
-        return open_request(*args, **kwargs).read().decode()
-
-    return open_request(*args, **kwargs).read()
-
-
-def get_url(*args, **kwargs):
-    return open_request(*args, **kwargs).geturl()
+    return open(*args, **kwargs).read()
 
 
 def get_html(*args, **kwargs):
     return html.fromstring(get(*args, **kwargs))
 
 
-def parse_soup(text, features=None, **kwargs):
-    """
-    Parse HTML using BeautifulSoup
-
-    >>> p = parse_soup('<p><h1>test</h1></p>')
-    >>> p.h1.text
-    'test'
-    """
-    if features is None:
-        features = 'lxml'
-
-    return BeautifulSoup(text, features=features, **kwargs)
-
-
-def get_soup(*args, **kwargs):
-    return parse_soup(get(*args, **kwargs))
-
-
 def get_xml(*args, **kwargs):
-    kwargs["decode"] = False  # we don't want to decode, for etree
-    return parse_xml(get(*args, **kwargs))
-
-
-def parse_xml(text):
-    """
-    >>> elem = parse_xml('<foo>bar</foo>')
-    >>> elem.tag
-    'foo'
-    >>> elem.text
-    'bar'
-    """
-    return etree.fromstring(text, parser=parser)  # nosec
+    return etree.fromstring(get(*args, **kwargs))
 
 
 def get_json(*args, **kwargs):
     return json.loads(get(*args, **kwargs))
 
 
-def open_request(url, query_params=None, user_agent=None, post_data=None, referer=None, get_method=None, cookies=False,
-                 timeout=None, headers=None, **kwargs):
-    if query_params is None:
-        query_params = {}
+def get_soup(*args, **kwargs):
+    return BeautifulSoup(get(*args, **kwargs), 'lxml')
 
-    if user_agent is None:
-        user_agent = ua_cloudbot
 
-    query_params.update(kwargs)
+def open(url, params=None, headers=None, data=None, timeout=10, get_method=None,
+         cookies=False, auth=None, auth_keys=None, oauth=False, oauth_keys=None, **kwargs):
 
-    url = prepare_url(url, query_params)
+    if params is None:
+        params = {}
 
-    request = urllib.request.Request(url, post_data)
+    params.update(kwargs)
+
+    url = prepare_url(url, params)
+
+    _request = request.Request(url, data)
 
     if get_method is not None:
-        request.get_method = lambda: get_method
+        _request.get_method = lambda: get_method
 
     if headers is not None:
-        for header_key, header_value in headers.items():
-            request.add_header(header_key, header_value)
+        for header_key, header_value in headers.iteritems():
+            _request.add_header(header_key, header_value)
 
-    request.add_header('User-Agent', user_agent)
+    if 'User-Agent' not in _request.headers:
+        _request.add_header('User-Agent', ua_firefox)
 
-    if referer is not None:
-        request.add_header('Referer', referer)
+    if auth:
+        base64string = base64.b64encode('%s:%s' % (auth_keys['username'], auth_keys['password']))
+        _request.add_header("Authorization", "Basic %s" % base64string)
+
+    if oauth:
+        nonce = oauth_nonce()
+        timestamp = oauth_timestamp()
+        api_url, req_data = string.split(url, "?")
+        unsigned_request = oauth_unsigned_request(nonce, timestamp, req_data, oauth_keys['consumer'], oauth_keys['access'])
+
+        signature = oauth_sign_request("GET", api_url, req_data, unsigned_request, oauth_keys['consumer_secret'], oauth_keys['access_secret'])
+
+        header = oauth_build_header(nonce, signature, timestamp, oauth_keys['consumer'], oauth_keys['access'])
+        _request.add_header('Authorization', header)
 
     if cookies:
-        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        opener = request.build_opener(request.HTTPCookieProcessor(jar))
     else:
-        opener = urllib.request.build_opener()
-
-    if timeout:
-        return opener.open(request, timeout=timeout)
-
-    return opener.open(request)
-
-
-# noinspection PyShadowingBuiltins
-def open(url, query_params=None, user_agent=None, post_data=None,
-         referer=None, get_method=None, cookies=False, timeout=None, headers=None,
-         **kwargs):  # pylint: disable=locally-disabled, redefined-builtin  # pragma: no cover
-    warnings.warn(
-        "http.open() is deprecated, use http.open_request() instead.",
-        DeprecationWarning
-    )
-
-    return open_request(
-        url, query_params=query_params, user_agent=user_agent, post_data=post_data, referer=referer,
-        get_method=get_method, cookies=cookies, timeout=timeout, headers=headers, **kwargs
-    )
+        opener = request.build_opener()
+    return opener.open(_request, timeout=timeout)
 
 
 def prepare_url(url, queries):
-    """
-    >>> str(unify_url(prepare_url("https://example.com?foo=bar", {'a': 1, 'b': 2})))
-    'https://example.com/?a=1&b=2&foo=bar'
-    """
     if queries:
-        scheme, netloc, path, query, fragment = urllib.parse.urlsplit(url)
+        scheme, netloc, path, query, fragment = parse.urlsplit(url)
 
-        query = dict(urllib.parse.parse_qsl(query))
+        query = dict(parse.parse_qsl(query))
         query.update(queries)
-        query = urllib.parse.urlencode(dict((to_utf8(key), to_utf8(value))
-                                            for key, value in query.items()))
+        query = urllib.urlencode(dict((to_utf8(key), to_utf8(value))
+                                  for key, value in query.iteritems()))
 
-        url = urllib.parse.urlunsplit((scheme, netloc, path, query, fragment))
+        url = parse.urlunsplit((scheme, netloc, path, query, fragment))
 
     return url
 
 
 def to_utf8(s):
-    """
-    >>> to_utf8('foo bar')
-    b'foo bar'
-    >>> to_utf8(b'foo bar')
-    b'foo bar'
-    >>> to_utf8(1)
-    b'1'
-    """
-    if isinstance(s, str):
+    if isinstance(s, unicode):
         return s.encode('utf8', 'ignore')
-
-    if isinstance(s, bytes):
-        return bytes(s)
-
-    return to_utf8(str(s))
+    else:
+        return str(s)
 
 
 def quote_plus(s):
-    """
-    >>> quote_plus(b'foo bar')
-    'foo+bar'
-    """
     return _quote_plus(to_utf8(s))
 
 
-def unescape(s):
-    """
-    >>> unescape('')
-    ''
-    >>> unescape(' ')
-    ' '
-    >>> unescape('<p>&lt;</p>')
-    '<'
-    """
-    if not s.strip():
-        return s
-    return html.fromstring(s).text_content()
+def oauth_nonce():
+    return ''.join([str(random.randint(0, 9)) for i in range(8)])
 
 
-UrlOrStr = Union[str, URL]
+def oauth_timestamp():
+    return str(int(time.time()))
 
 
-def unify_url(url: UrlOrStr) -> URL:
-    parsed = URL(url)
-    return parsed.with_query(MultiDict(sorted(parsed.query.items())))
+def oauth_unsigned_request(nonce, timestamp, req, consumer, token):
+    d = { 'oauth_consumer_key':consumer,
+          'oauth_nonce':nonce,
+          'oauth_signature_method':'HMAC-SHA1',
+          'oauth_timestamp':timestamp,
+          'oauth_token':token,
+          'oauth_version':'1.0' }
+
+    d.update(dict(parse.parse_qsl(req)))
+    unsigned_req = ''
+
+    for x in sorted(d, key=lambda key: key):
+        unsigned_req += x + "=" + d[x] + "&"
+
+    unsigned_req = quote(unsigned_req[:-1])
+    return unsigned_req
 
 
-def compare_urls(a: UrlOrStr, b: UrlOrStr) -> bool:
-    """Compare two URLs, unifying them first"""
-    return unify_url(a) == unify_url(b)
+def oauth_build_header(nonce, signature, timestamp, consumer, token):
+    d = { 'oauth_consumer_key':consumer,
+          'oauth_nonce':nonce,
+          'oauth_signature':signature,
+          'oauth_signature_method':'HMAC-SHA1',
+          'oauth_timestamp':timestamp,
+          'oauth_token':token,
+          'oauth_version':'1.0' }
+
+    header='OAuth '
+
+    for x in sorted(d, key=lambda key: key):
+        header += x + '="' + d[x] + '", '
+
+    return header[:-1]
+
+
+def oauth_sign_request(method, url, params, unsigned_request, consumer_secret, token_secret):
+    key = consumer_secret + "&" + token_secret
+
+    base = method + "&" + quote(url, '') + "&" + unsigned_request
+
+    hash = hmac.new(key, base, sha1)
+
+    signature = quote(binascii.b2a_base64(hash.digest())[:-1])
+
+    return signature
+
+
+def parse_soup(text, features=None, **kwargs):
+    if features is None:
+        features = 'lxml'
+
+    return BeautifulSoup(text, features=features, **kwargs)
+
+
+def parse_xml(text):
+    return etree.fromstring(text, parser=parser)
+
+
+def get_title(url, tag="title"):
+    return h.unescape(get_soup(url).find(tag).text)
+

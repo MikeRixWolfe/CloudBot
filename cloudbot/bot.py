@@ -15,7 +15,7 @@ from sqlalchemy.orm import scoped_session, sessionmaker
 from venusian import Scanner
 from watchdog.observers import Observer
 
-from cloudbot import clients
+from cloudbot import irc
 from cloudbot.client import Client
 from cloudbot.config import Config
 from cloudbot.event import Event, CommandEvent, RegexEvent, EventType
@@ -294,7 +294,7 @@ class CloudBot:
         Load all clients from the "clients" directory
         """
         scanner = Scanner(bot=self)
-        scanner.scan(clients, categories=['cloudbot.client'])
+        scanner.scan(irc, categories=['cloudbot.client'])
 
     async def process(self, event):
         """

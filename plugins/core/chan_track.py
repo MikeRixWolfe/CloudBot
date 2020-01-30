@@ -19,7 +19,7 @@ from irclib.parser import Prefix
 import cloudbot.bot
 from cloudbot import hook
 from cloudbot.client import Client
-from cloudbot.clients.irc import IrcClient
+from cloudbot.irc import IrcClient
 from cloudbot.util import web
 from cloudbot.util.mapping import KeyFoldDict, KeyFoldMixin
 

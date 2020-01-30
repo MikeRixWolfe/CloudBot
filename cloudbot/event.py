@@ -270,7 +270,7 @@ class Event:
         if target == self.nick or not reply_ping:
             self.conn.message(target, *messages)
         else:
-            self.conn.message(target, "({}) {}".format(
+            self.conn.message(target, "{}: {}".format(
                 self.nick, messages[0]
             ), *messages[1:])
 

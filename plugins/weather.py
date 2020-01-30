@@ -57,12 +57,7 @@ def bearing_to_card(bearing):
         raise ValueError("Invalid wind bearing: {}".format(bearing))
 
     # Derived from values from http://snowfence.umn.edu/Components/winddirectionanddegreeswithouttable3.htm
-    adj_bearing = bearing + BEARING_RANGE
-    mod_bearing = adj_bearing % MAX_DEGREES
-    percent = mod_bearing / MAX_DEGREES
-    adj_position = NUM_BEARINGS * percent
-    index = math.floor(adj_position)
-    return BEARINGS[index]
+    return BEARINGS[math.floor(NUM_BEARINGS * (((bearing + BEARING_RANGE) % MAX_DEGREES) / MAX_DEGREES))]
 
 
 def convert_f2c(temp):

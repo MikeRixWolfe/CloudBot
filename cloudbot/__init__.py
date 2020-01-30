@@ -17,6 +17,7 @@ __all__ = (
     "clients",
     "util",
     "bot",
+    "irc",
     "client",
     "config",
     "event",
