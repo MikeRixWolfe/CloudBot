@@ -31,7 +31,6 @@ def on_join(chan, conn, nick):
 
 @hook.irc_raw('324')
 def check_mode(irc_paramlist, conn, message):
-    # message(", ".join(irc_paramlist), "bloodygonzo")
     mode = irc_paramlist[2]
     require_reg = conn.config.get('require_registered_channels', False)
     if "r" not in mode and require_reg:

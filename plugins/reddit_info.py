@@ -20,8 +20,6 @@ user_url = "http://reddit.com/user/{}/"
 subreddit_url = "http://reddit.com/r/{}/"
 short_url = "https://redd.it/{}"
 post_url = "https://reddit.com/comments/{}.json"
-# This agent should be unique for your cloudbot instance
-agent = {"User-Agent": "gonzobot a cloudbot (IRCbot) implementation for snoonet.org by /u/bloodygonzo"}
 
 post_re = re.compile(
     r"""
@@ -53,7 +51,7 @@ def api_request(url):
     :type url: yarl.URL
     """
     url = url.with_query("").with_scheme("https") / ".json"
-    r = requests.get(str(url), headers=agent)
+    r = requests.get(str(url))
     r.raise_for_status()
     return r.json()
 
