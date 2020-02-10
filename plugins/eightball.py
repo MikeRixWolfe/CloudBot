@@ -1,5 +1,4 @@
 import random
-
 from cloudbot import hook
 from cloudbot.util import colors
 
@@ -21,7 +20,7 @@ responses = ["$(dark_green, bold)It is certain",
 
 
 @hook.command("8ball")
-async def eightball(action):
-    """8ball <question> - asks the all knowing magic electronic eight ball <question>"""
-    return colors.parse(random.choice(responses))
+async def eightball(message):
+    """<question> - asks the all knowing magic electronic eight ball <question>"""
+    message(colors.parse(random.choice(responses)))
 

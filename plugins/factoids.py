@@ -1,13 +1,11 @@
 import re
 import string
 from collections import defaultdict
-
 from sqlalchemy import Column, PrimaryKeyConstraint, String, Table, and_
-
 from cloudbot import hook
 from cloudbot.util import colors, database, web
 from cloudbot.util.formatting import gen_markdown_table, get_text_list
-from cloudbot.util.web import NoPasteException
+
 
 # below is the default factoid in every channel you can modify it however you like
 default_dict = {"commands": "https://snoonet.org/gonzobot"}
@@ -139,7 +137,7 @@ def remove_fact(chan, names, db, notice):
     if found:
         try:
             notice("Removed Data: {}".format(paste_facts(found, True)))
-        except NoPasteException:
+        except Exception:
             notice("Unable to paste removed data, not removing facts")
             return
 

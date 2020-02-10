@@ -12,7 +12,6 @@ logger = logging.getLogger("cloudbot")
 class EventType(enum.Enum):
     message = 0
     action = 1
-    # TODO: Do we actually want to have a 'notice' event type? Should the NOTICE command be a 'message' type?
     notice = 2
     join = 3
     part = 4
@@ -315,18 +314,13 @@ class Event:
         :type message: str
         :type target: str
         """
-        avoid_notices = self.conn.config.get("avoid_notices", False)
         if target is None:
             if self.nick is None:
                 raise ValueError("Target must be specified when nick is not assigned")
 
             target = self.nick
 
-        # we have a config option to avoid noticing user and PM them instead, so we use it here
-        if avoid_notices:
-            self.conn.message(target, message)
-        else:
-            self.conn.notice(target, message)
+        self.conn.notice(target, message)
 
     def has_permission(self, permission, notice=True):
         """ returns whether or not the current user has a given permission
@@ -439,7 +433,11 @@ class CommandEvent(Event):
                 self.triggered_prefix, self.triggered_command, self.hook.doc
             )
 
-        self.notice(message, target=target)
+        avoid_notices = self.conn.config.get("avoid_notices", False)
+        if avoid_notices:
+            self.message(message, target=target)
+        else:
+            self.notice(message, target=target)
 
 
 class RegexEvent(Event):

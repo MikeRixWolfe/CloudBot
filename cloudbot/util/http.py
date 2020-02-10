@@ -11,7 +11,7 @@ import urllib.request as request
 import urllib.parse as parse
 
 from hashlib import sha1
-from urllib.parse import quote, quote_plus as _quote_plus
+from urllib.parse import quote, quote_plus
 from urllib.error import HTTPError, URLError
 
 from lxml import etree, html
@@ -25,6 +25,7 @@ ua_firefox = 'Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.8.1.6) ' \
 
 jar = CookieJar()
 h = HTMLParser()
+parser = etree.XMLParser(resolve_entities=False, no_network=True)
 
 
 def get(*args, **kwargs):
@@ -57,13 +58,16 @@ def open(url, params=None, headers=None, data=None, timeout=10, get_method=None,
 
     url = prepare_url(url, params)
 
+    if data:
+        data = urllib.parse.urlencode(data).encode("utf-8")
+
     _request = request.Request(url, data)
 
     if get_method is not None:
         _request.get_method = lambda: get_method
 
     if headers is not None:
-        for header_key, header_value in headers.iteritems():
+        for header_key, header_value in list(headers.items()):
             _request.add_header(header_key, header_value)
 
     if 'User-Agent' not in _request.headers:
@@ -97,23 +101,11 @@ def prepare_url(url, queries):
 
         query = dict(parse.parse_qsl(query))
         query.update(queries)
-        query = urllib.urlencode(dict((to_utf8(key), to_utf8(value))
-                                  for key, value in query.iteritems()))
+        query = urllib.parse.urlencode(query)
 
         url = parse.urlunsplit((scheme, netloc, path, query, fragment))
 
     return url
-
-
-def to_utf8(s):
-    if isinstance(s, unicode):
-        return s.encode('utf8', 'ignore')
-    else:
-        return str(s)
-
-
-def quote_plus(s):
-    return _quote_plus(to_utf8(s))
 
 
 def oauth_nonce():

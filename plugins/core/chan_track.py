@@ -18,7 +18,6 @@ from irclib.parser import Prefix
 
 import cloudbot.bot
 from cloudbot import hook
-from cloudbot.client import Client
 from cloudbot.irc import IrcClient
 from cloudbot.util import web
 from cloudbot.util.mapping import KeyFoldDict, KeyFoldMixin
@@ -558,7 +557,7 @@ class MappingSerializer:
         if isinstance(obj, (str, Number, bool)) or obj is None:
             return obj
 
-        if isinstance(obj, Client):
+        if isinstance(obj, IrcClient):
             return '<client name={!r}>'.format(obj.name)
 
         if isinstance(obj, MappingAttributeAdapter):

@@ -16,7 +16,6 @@ from venusian import Scanner
 from watchdog.observers import Observer
 
 from cloudbot import irc
-from cloudbot.client import Client
 from cloudbot.config import Config
 from cloudbot.event import Event, CommandEvent, RegexEvent, EventType
 from cloudbot.hook import Action
@@ -193,7 +192,7 @@ class CloudBot:
         self.loop.close()
         return restart
 
-    def get_client(self, name: str) -> Type[Client]:
+    def get_client(self, name: str):
         return self.clients[name]
 
     def register_client(self, name, cls):
@@ -382,7 +381,12 @@ class CloudBot:
                         else:
                             commands = sorted(command for command, plugin in potential_matches)
                             txt_list = formatting.get_text_list(commands)
-                            event.notice("Possible matches: {}".format(txt_list))
+
+                            avoid_notices = event.conn.config.get("avoid_notices", False)
+                            if avoid_notices:
+                                event.message("Possible matches: {}".format(txt_list))
+                            else:
+                                event.notice("Possible matches: {}".format(txt_list))
 
         if event.type in (EventType.message, EventType.action):
             # Regex hooks

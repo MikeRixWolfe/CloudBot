@@ -1,4 +1,5 @@
 import asyncio
+import collections
 import logging
 import random
 import re
@@ -8,10 +9,12 @@ import traceback
 from functools import partial
 from pathlib import Path
 
+import venusian
+
 from irclib.parser import Message
 
-from cloudbot.client import Client, client, ClientConnectError
 from cloudbot.event import Event, EventType, IrcOutEvent
+from cloudbot.permissions import PermissionManager
 from cloudbot.util import async_util
 
 logger = logging.getLogger("cloudbot")
@@ -47,8 +50,26 @@ def decode(bytestring):
     return bytestring.decode('utf-8', errors='ignore')
 
 
+def client(_type):
+    def _decorate(cls):
+        def callback_cb(context, name, obj):
+            context.bot.register_client(_type, cls)
+
+        venusian.attach(cls, callback_cb, category='cloudbot.client')
+        return cls
+
+    return _decorate
+
+
+class ClientConnectError(Exception):
+    def __init__(self, client_name, server):
+        super().__init__("Unable to connect to client {} with server {}".format(client_name, server))
+        self.client_name = client_name
+        self.server = server
+
+
 @client("irc")
-class IrcClient(Client):
+class IrcClient():
     """
     An implementation of Client for IRC.
     :type use_ssl: bool
@@ -65,7 +86,38 @@ class IrcClient(Client):
         :type channels: list[str]
         :type config: dict[str, unknown]
         """
-        super().__init__(bot, _type, name, nick, channels=channels, config=config)
+        self.bot = bot
+        self.loop = bot.loop
+        self.name = name
+        self.nick = nick
+        self._type = _type
+
+        self.channels = []
+
+        if channels is None:
+            self.config_channels = []
+        else:
+            self.config_channels = channels
+
+        if config is None:
+            self.config = {}
+        else:
+            self.config = config
+        self.vars = {}
+        self.history = {}
+
+        # create permissions manager
+        self.permissions = PermissionManager(self)
+
+        # for plugins to abuse
+        self.memory = collections.defaultdict()
+
+        # set when on_load in core_misc is done
+        self.ready = False
+
+        self._active = False
+
+        self.cancelled_future = async_util.create_future(self.loop)
 
         self.target_nick = nick
         conn_config = config['connection']
@@ -296,6 +348,18 @@ class IrcClient(Client):
     def connected(self):
         return self._protocol and self._protocol.connected
 
+    @property
+    def type(self):
+        return self._type
+
+    @property
+    def active(self):
+        return self._active
+
+    @active.setter
+    def active(self, value):
+        self._active = value
+
     def is_nick_valid(self, nick):
         return bool(irc_nick_re.fullmatch(nick))
 
@@ -525,3 +589,4 @@ class _IrcProtocol(asyncio.Protocol):
     @property
     def connected(self):
         return self._connected
+
