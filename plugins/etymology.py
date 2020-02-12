@@ -1,55 +1,25 @@
-"""
-Etymology plugin
-
-Authors:
-    - GhettoWizard
-    - Scaevolus
-    - linuxdaemon <linuxdaemon@snoonet.org>
-"""
 import re
 
-import requests
-from requests import HTTPError
-
 from cloudbot import hook
-from cloudbot.util import formatting, web
-from cloudbot.util.http import parse_soup
+from cloudbot.util import formatting, http
 
 
-@hook.command("e", "etymology")
-def etymology(text, reply):
-    """<word> - retrieves the etymology of <word>
-
-    :type text: str
-    """
-
-    url = 'http://www.etymonline.com/index.php'
-
-    response = requests.get(url, params={"term": text})
-
+@hook.command("etymology", "ety")
+def etymology(text, message):
+    """<word> - Retrieves the etymology of chosen word."""
+    url = 'http://www.etymonline.com/search'
     try:
-        response.raise_for_status()
-    except HTTPError as e:
-        if e.response.status_code == 404:
-            return "No etymology found for {} :(".format(text)
-        reply("Error reaching etymonline.com: {}".format(e.response.status_code))
-        raise
+        params = {'q': text}
+        h = http.get_html(url, params=params)
+    except:
+        return "Error fetching etymology."
+    etym = h.xpath('//section')
 
-    if response.status_code != requests.codes.ok:
-        return "Error reaching etymonline.com: {}".format(response.status_code)
+    if not etym:
+        return 'No etymology found for ' + text
 
-    soup = parse_soup(response.text)
-
-    block = soup.find('div', class_=re.compile("word--.+"))
-
-    etym = ' '.join(e.text for e in block.div)
-
-    etym = ' '.join(etym.splitlines())
-
+    etym = etym[0].text_content()
     etym = ' '.join(etym.split())
 
-    etym = formatting.truncate(etym, 200)
+    message(formatting.truncate_str(etym, 400))
 
-    etym += " Source: " + web.try_shorten(response.url)
-
-    return etym

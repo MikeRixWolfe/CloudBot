@@ -1,23 +1,30 @@
 import math
+
 from datetime import datetime
-from sqlalchemy import Table, Column, PrimaryKeyConstraint, String
+from sqlalchemy import Column, String
+
 from cloudbot import hook
 from cloudbot.bot import bot
-from cloudbot.util import colors, database, http, web
+from cloudbot.util import database, http, web
 
 
 geo_url = 'https://maps.googleapis.com/maps/api/geocode/json'
 weather_url = 'https://api.darksky.net/forecast/{}/{},{}'
 
-table = Table(
-    "weather",
-    database.metadata,
-    Column('nick', String),
-    Column('loc', String),
-    PrimaryKeyConstraint('nick')
-)
 
-location_cache = []
+class locs(database.base):
+    __tablename__ = 'weather'
+    __table_args__ = {'extend_existing': True}
+
+    nick = Column(String, primary_key=True)
+    loc = Column(String)
+
+    def __init__(self, nick, loc):
+        self.nick = nick
+        self.loc = loc
+
+database.metadata.create_all(database.engine)
+location_cache = {}
 
 BEARINGS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
             'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW']
@@ -28,30 +35,32 @@ BEARING_SECTION = MAX_DEGREES / NUM_BEARINGS
 BEARING_RANGE = BEARING_SECTION / 2
 
 
-def strftime(time):
-    return datetime.fromtimestamp(time).strftime("%p %A").replace('AM', 'early').replace('PM', 'late')
+@hook.on_start
+def load_cache(db):
+    new_cache = {}
+    for row in db.query(locs).all():
+        new_cache[row.nick] = row.loc
+
+    location_cache.clear()
+    location_cache.update(new_cache)
 
 
 def add_location(nick, location, db):
-    test = dict(location_cache)
-    location = str(location)
-    if nick.lower() in test:
-        db.execute(table.update().values(loc=location.lower()).where(table.c.nick == nick.lower()))
-        db.commit()
-        load_cache(db)
+    if location_cache.get(nick):
+        loc = db.query(locs) \
+            .filter(locs.nick == nick.lower()) \
+            .first()
+        loc.loc = location
     else:
-        db.execute(table.insert().values(nick=nick.lower(), loc=location.lower()))
-        db.commit()
-        load_cache(db)
+        loc = locs(nick.lower(), location)
+        db.add(loc)
+
+    db.commit()
+    load_cache(db)
 
 
-def get_location(nick):
-    location = [row[1] for row in location_cache if nick.lower() == row[0]]
-    if not location:
-        return
-
-    location = location[0]
-    return location
+def strftime(time):
+    return datetime.fromtimestamp(time).strftime("%p %A").replace('AM', 'early').replace('PM', 'late')
 
 
 def geocode(text):
@@ -75,7 +84,7 @@ def get_weather(text, nick, reply, message, notice_doc, db):
         raise Exception("This command requires a DarkSky API key.")
 
     if not text:
-        location = get_location(nick)
+        location = location_cache.get(nick.lower())
         if not location:
             notice_doc()
             return None, None
@@ -96,18 +105,6 @@ def get_weather(text, nick, reply, message, notice_doc, db):
         raise Exception("DarkSky API error, please try again in a few minutes.")
 
     return location_data, weather_data
-
-
-@hook.on_start
-def load_cache(db):
-    new_cache = []
-    for row in db.execute(table.select()):
-        nick = row["nick"]
-        location = row["loc"]
-        new_cache.append((nick, location))
-
-    location_cache.clear()
-    location_cache.extend(new_cache)
 
 
 @hook.command("weather", "w", autohelp=False)

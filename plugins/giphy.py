@@ -1,33 +1,25 @@
-import random
-
-import requests
+from random import choice
 
 from cloudbot import hook
 from cloudbot.bot import bot
+from cloudbot.util import http
 
-api_url = 'http://api.giphy.com/v1/gifs'
 
-
-@hook.command("gif", "giphy")
-def giphy(text):
-    """<query> - Searches giphy.com for a gif using the provided search term."""
+@hook.command
+def gif(text, message):
+    """<query> - Returns first giphy search result."""
     api_key = bot.config.get_api_key("giphy")
-    term = text.strip()
-    search_url = api_url + '/search'
-    params = {
-        'q': term,
-        'limit': 10,
-        'fmt': "json",
-        'api_key': api_key
-    }
-    results = requests.get(search_url, params=params)
-    results.raise_for_status()
-    r = results.json()
-    if not r['data']:
-        return "no results found."
-    gif = random.choice(r['data'])
-    if gif['rating']:
-        out = "{} content rating: \x02{}\x02. (Powered by GIPHY)".format(gif['embed_url'], gif['rating'].upper())
-    else:
-        out = "{} - (Powered by GIPHY)".format(gif['embed_url'])
-    return out
+    if not api_key:
+        return "This command requires an API key from giphy.com."
+
+    url = 'http://api.giphy.com/v1/gifs/search'
+    try:
+        response = http.get_json(url, q=text, limit=5, api_key=api_key)
+    except http.HTTPError as e:
+        return e.msg
+
+    try:
+        message(choice(response['data'])['bitly_gif_url'])
+    except:
+        message('No results found.')
+

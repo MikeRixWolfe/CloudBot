@@ -1,15 +1,10 @@
-import requests
-
 from cloudbot import hook
-# Define some constants
 from cloudbot.bot import bot
+from cloudbot.util import http, web
+
 
 base_url = 'https://maps.googleapis.com/maps/api/'
 geocode_api = base_url + 'geocode/json'
-
-# Change this to a ccTLD code (eg. uk, nz) to make results more targeted towards that specific country.
-# <https://developers.google.com/maps/documentation/geocoding/#RegionCodes>
-bias = None
 
 
 def check_status(status):
@@ -37,18 +32,17 @@ def check_status(status):
 @hook.command("locate", "maps")
 def locate(text):
     """<location> - Finds <location> on Google Maps."""
-    dev_key = bot.config.get_api_key("google_dev_key")
-    if not dev_key:
+    api_key = bot.config.get_api_key("google").get('access', None)
+    if not api_key:
         return "This command requires a Google Developers Console API key."
 
     # Use the Geocoding API to get co-ordinates from the input
-    params = {"address": text, "key": dev_key}
+    params = {"address": text, "key": api_key}
+    bias = bot.config.get('region_bias_cc', None)
     if bias:
         params['region'] = bias
 
-    r = requests.get(geocode_api, params=params)
-    r.raise_for_status()
-    json = r.json()
+    json = http.get_json(geocode_api, params=params)
 
     error = check_status(json['status'])
     if error:
@@ -60,7 +54,7 @@ def locate(text):
     location = result['geometry']['location']
     formatted_location = "{lat},{lng},16z".format(**location)
 
-    url = "https://google.com/maps/@" + formatted_location + "/data=!3m1!1e3"
+    url = web.try_shorten("https://google.com/maps/@" + formatted_location + "/data=!3m1!1e3")
     tags = result['types']
 
     # if 'political' is not the only tag, remove it.

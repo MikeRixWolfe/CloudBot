@@ -1,3 +1,5 @@
+import requests
+
 from cloudbot.bot import bot
 from cloudbot.util import http
 
@@ -18,7 +20,7 @@ def shorten(url):
 
 def try_shorten(url):
     try:
-        out = googl(url)
+        out = shorten(url)
     except:
         out = url
     return out
@@ -26,8 +28,6 @@ def try_shorten(url):
 
 def paste(text, ext='txt'):
     """ pastes text to a hastebin server """
-    postdata = {'body': text}
-
-    data = http.get_json(paste_url + "/documents", data=postdata, get_method='POST')
+    data = requests.post(paste_url + "/documents", data=text).json()
     return "{}/{}.{}".format(paste_url, data['key'], ext)
 

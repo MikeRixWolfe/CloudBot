@@ -4,7 +4,7 @@ import requests
 
 from cloudbot import hook
 from cloudbot.bot import bot
-
+from cloudbot.util import http
 
 formats = [
     "{ip} seems to be located in {city}, {region_name} in {country_name}",
@@ -24,20 +24,22 @@ def fformat(args):
             except:
                 pass
 
-    return max(dict(match()).iteritems(), key=lambda x: (x[1], len(x[0])))[0]
+    return max(dict(match()).items(), key=lambda x: (x[1], len(x[0])))[0]
 
 
-#@hook.api_key('ipapi')
 @hook.command
 async def geoip(text, reply, loop):
-    """geoip <IP address> - Gets the location of an IP address."""
-    api_key = bot.config.get_api_key("giphy")
-    url = "http://api.ipapi.com/%s" % (http.quote(text.encode('utf8'), safe=''))
+    """<IP address> - Gets the location of an IP address."""
+    api_key = bot.config.get_api_key("ipapi")
+    if not api_key:
+        return "This command requires an API key from ipapi.com."
+
+    url = "http://api.ipapi.com/" + http.quote(text.encode('utf8'), safe='')
 
     try:
-        data = requests.get(url, params={'access_key': api_key}).json()
+        data = http.get_json(url, access_key=api_key)
     except:
-        return "I couldn't find %s" % inp
+        return f"I couldn't find {text}"
 
     return fformat(data).replace('in United', 'in the United')
 

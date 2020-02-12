@@ -7,7 +7,7 @@ max_length = 100
 
 
 def goog_trans(text, source, target):
-    api_key = bot.config.get_api_key("google_dev_key")
+    api_key = bot.config.get_api_key("google")
     url = 'https://www.googleapis.com/language/translate/v2'
 
     if len(text) > max_length:
@@ -15,7 +15,7 @@ def goog_trans(text, source, target):
 
     params = {
         'q': text,
-        'key': api_key,
+        'key': api_key['access'],
         'target': target,
         'format': 'text'
     }
@@ -55,7 +55,7 @@ def match_language(fragment):
 def translate(text):
     """[source language [target language]] <sentence> - translates <sentence> from source language (default autodetect)
      to target language (default English) using Google Translate"""
-    api_key = bot.config.get_api_key("google_dev_key")
+    api_key = bot.config.get_api_key("google")
     if not api_key:
         return "This command requires a Google Developers Console API key."
 

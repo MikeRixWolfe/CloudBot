@@ -9,11 +9,7 @@ unescape_re = re.compile(r'\\(.)')
 
 @hook.regex(correction_re)
 def correction(match, conn, nick, chan, message):
-    """
-    :type match: re.__Match
-    :type conn: cloudbot.client.Client
-    :type chan: str
-    """
+    """- correct someone."""
     groups = [unescape_re.sub(r"\1", group or "") for group in match.groups()]
     find = groups[0]
     replace = groups[1]
@@ -42,7 +38,7 @@ def correction(match, conn, nick, chan, message):
 
             mod_msg = unescape_re.sub(r"\1", mod_msg)
 
-            message("Correction, {}".format(fmt.format(name, mod_msg)))
+            message(fmt.format(name, mod_msg))
 
             if nick.lower() == name.lower():
                 msg = ireplace(re.escape(msg), find_esc, replace_esc)

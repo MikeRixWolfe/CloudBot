@@ -1,72 +1,68 @@
-"""
-google.py
-
-Originally for RoboCop 2, a replacement after Google's deprecation of Google Web Search API
-Module requires a Google Custom Search API key and a Custom Search Engine ID in order to function.
-
-Created By:
-    - Foxlet <http://furcode.tk/>
-
-License:
-    GNU General Public License (Version 3)
-"""
-
-import requests
+import random
+import re
 
 from cloudbot import hook
 from cloudbot.bot import bot
-from cloudbot.util import formatting, filesize
-
-API_CS = 'https://www.googleapis.com/customsearch/v1'
+from cloudbot.util import formatting, http, web
 
 
-@hook.command('gse')
-def gse(text):
+base_url = 'https://www.googleapis.com/customsearch/v1'
+
+
+def custom_get(query, key, is_image=None, num=1):
+    params = {
+        "q": query,
+        "cx": key['cx'],
+        "key": key['access'],
+        "num": num,
+        "fields": "items(title,link,snippet)",
+        "safe": "off"
+    }
+
+    if is_image:
+        params["searchType"] = "image"
+
+    return http.get_json(base_url, params=params)
+
+
+@hook.command('gis')
+def googleimage(text, message):
+    """<query> - Returns a random image from the first 10 Google Image results for <query>."""
+    api_key = dev_key = bot.config.get_api_key("google")
+    if not api_key:
+        return "This command requires a Google Developers Console API key."
+
+    try:
+        parsed = custom_get(text, api_key, is_image=True, num=1)
+    except Exception as e:
+        return "Error: {}".format(e)
+    if 'items' not in parsed:
+        return "No results"
+
+    message(web.try_shorten(random.choice(parsed['items'])['link']))
+
+
+@hook.command('google', 'g')
+def google(text, message):
     """<query> - Returns first Google search result for <query>."""
-    dev_key = bot.config.get_api_key("google_dev_key")
-    cx = bot.config.get_api_key("google_cse_id")
-    if not dev_key:
+    api_key = dev_key = bot.config.get_api_key("google")
+    if not api_key:
         return "This command requires a Google Developers Console API key."
-    if not cx:
-        return "This command requires a custom Google Search Engine ID."
-
-    parsed = requests.get(API_CS, params={"cx": cx, "q": text, "key": dev_key}).json()
 
     try:
-        result = parsed['items'][0]
-    except KeyError:
-        return "No results found."
+        parsed = custom_get(text, api_key)
+    except Exception as e:
+        return "Error: {}".format(e)
+    if 'items' not in parsed:
+        return "No results"
 
-    title = formatting.truncate_str(result['title'], 60)
-    content = result['snippet']
-
-    if not content:
-        content = "No description available."
-    else:
-        content = formatting.truncate_str(content.replace('\n', ''), 150)
-
-    return u'{} -- \x02{}\x02: "{}"'.format(result['link'], title, content)
+    link = web.try_shorten(parsed['items'][0]['link'])
+    title = formatting.truncate_str(parsed['items'][0]['title'], 250)
+    title = ' '.join(re.sub('\r|\n', ' ', title).split()).strip('| ')
+    message(f"{link} - \x02{title}\x02")
 
 
-@hook.command('gseis', 'image')
-def gse_gis(text):
-    """<query> - Returns first Google Images result for <query>."""
-    dev_key = bot.config.get_api_key("google_dev_key")
-    cx = bot.config.get_api_key("google_cse_id")
-    if not dev_key:
-        return "This command requires a Google Developers Console API key."
-    if not cx:
-        return "This command requires a custom Google Search Engine ID."
-
-    parsed = requests.get(API_CS, params={"cx": cx, "q": text, "searchType": "image", "key": dev_key}).json()
-
-    try:
-        result = parsed['items'][0]
-        metadata = parsed['items'][0]['image']
-    except KeyError:
-        return "No results found."
-
-    dimens = '{}x{}px'.format(metadata['width'], metadata['height'])
-    size = filesize.size(int(metadata['byteSize']))
-
-    return u'{} [{}, {}, {}]'.format(result['link'], dimens, result['mime'], size)
+@hook.command
+def map(text, message):
+    """<place>|<origin to destination> - Gets a Map of place or route from Google Maps."""
+    message(web.try_shorten("https://www.google.com/maps/?q={}".format(http.quote_plus(text))))

@@ -1,6 +1,5 @@
-from urllib.error import URLError, HTTPError
-
 from cloudbot import hook
+from cloudbot.bot import bot
 from cloudbot.util import http
 
 formats = {
@@ -11,9 +10,6 @@ formats = {
 
 
 def format_domain(domain):
-    """
-    :type domain: dict[str, str]
-    """
     if domain["availability"] in formats:
         domainformat = formats[domain["availability"]]
     else:
@@ -23,16 +19,16 @@ def format_domain(domain):
 
 @hook.command("domain", "domainr")
 def domainr(text):
-    """<domain> - uses domain.nr's API to search for a domain, and similar domains
+    """<domain> - Uses domain.nr's API to search for a domain, and similar domains."""
+    api_key = bot.config.get_api_key("rapidapi")
+    if not api_key:
+        return "This command requires an API key from rapidapi.com."
 
-    :type text: str
-    """
-    try:
-        data = http.get_json('http://domai.nr/api/json/search?q=' + text)
-    except (URLError, HTTPError):
-        return "Unable to get data for some reason. Try again later."
+    params = {'client_id': api_key, 'domain': text}
+    data = http.get_json('https://domainr.p.rapidapi.com/v2/search', params=params)
     if data['query'] == "":
         return "An error occurred: {status} - {message}".format(**data['error'])
 
     domains = [format_domain(domain) for domain in data["results"]]
     return "Domains: {}".format(", ".join(domains))
+

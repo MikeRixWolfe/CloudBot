@@ -214,7 +214,7 @@ def get_user_data(page, user, reply):
     return r.json()
 
 
-@hook.command("karma", "ruser", singlethread=True)
+@hook.command("ruser", singlethread=True)
 def karma(text, reply):
     """<reddituser> - will return the information about the specified reddit username"""
     user = get_user(text)

@@ -152,6 +152,7 @@ class CloudBot:
         self.db_base = declarative_base(metadata=self.db_metadata, bind=self.db_engine)
 
         # set botvars so plugins can access when loading
+        database.engine = self.db_engine
         database.base = self.db_base
 
         logger.debug("Database system initialised.")
