@@ -61,7 +61,8 @@ def get_tags(method, artist, **params):
         return "no tags"
 
     blacklist = ["seen live"]
-    tag_list = [tag['name'].lower() for tag in tags['toptags']['tag'] if tag['name'].lower() not in blacklist][:4]
+    tag_list = [tag['name'].lower() for tag in tags['toptags']['tag']
+        if tag['name'].lower() not in blacklist][:4]
 
     return ', '.join(tag_list) if tag_list else 'no tags'
 
@@ -140,7 +141,7 @@ def check_key_and_user(db, nick, text=None, save=True):
 
 @hook.command("nowplaying", "np", autohelp=False)
 def nowplaying(text, nick, message, db):
-    """[user] - displays the now playing (or last played) track of LastFM user [user]"""
+    """[user] - displays the now playing (or last played) track of the LastFM user."""
     user, err = check_key_and_user(db, nick, text)
     if err:
         return err
@@ -212,7 +213,7 @@ def lfmuser(text, nick, message, db):
 
 @hook.command
 def similar(text, message):
-    """<artist> - Gets similar artists via LastFM."""
+    """<artist> - Gets similar artists via Last.FM."""
     api_key = bot.config.get_api_key("lastfm")
     if not api_key:
         return "Error: No API key set."
@@ -224,7 +225,7 @@ def similar(text, message):
 
 @hook.command('tags', 'genres')
 def tags(text, message):
-    """<artist> - Gets genres for artist via LastFM."""
+    """<artist> - Gets genres for artist via Last.FM."""
     api_key = bot.config.get_api_key("lastfm")
     if not api_key:
         return "Error: No API key set."
@@ -236,7 +237,7 @@ def tags(text, message):
 
 @hook.command("plays")
 def getplays(text, nick, message, db):
-    """<artist> - displays the current user's playcount for <artist>. You must have your username saved."""
+    """<artist> - Displays the current user's playcount for <artist>. You must have your username saved."""
     user, err = check_key_and_user(db, nick)
     if err:
         return err
@@ -256,7 +257,7 @@ def getplays(text, nick, message, db):
 
 @hook.command("band")
 def getbandinfo(text, message):
-    """<artist> - displays information about [artist]."""
+    """<artist> - Displays information about the specified artist."""
     api_key = bot.config.get_api_key("lastfm")
     if not api_key:
         return "Error: No API key set."
@@ -276,7 +277,7 @@ def getbandinfo(text, message):
 
 @hook.command(autohelp=False)
 def toptrack(text, nick, message, db):
-    """[period] - Grabs a list of the top tracks for a Last.FM username"""
+    """[period] - Grabs a list of the top tracks for the current user. You must have your username saved."""
     username, err = check_key_and_user(db, nick)
     if err:
         return err
@@ -297,7 +298,7 @@ def toptrack(text, nick, message, db):
 
 @hook.command(autohelp=False)
 def topartists(text, nick, message, db):
-    """[period] - Grabs a list of the top artists for a Last.FM username."""
+    """[period] - Grabs a list of the top artists for the current user. You must have your username saved."""
     username, err = check_key_and_user(db, nick)
     if err:
         return err
