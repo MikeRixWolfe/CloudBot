@@ -28,7 +28,7 @@ def custom_get(query, key, is_image=None, num=1):
 @hook.command('gis')
 def googleimage(text, message):
     """<query> - Returns a random image from the first 10 Google Image results for <query>."""
-    api_key = dev_key = bot.config.get_api_key("google")
+    api_key = bot.config.get_api_key("google")
     if not api_key:
         return "This command requires a Google Developers Console API key."
 
@@ -45,7 +45,7 @@ def googleimage(text, message):
 @hook.command('google', 'g')
 def google(text, message):
     """<query> - Returns first Google search result for <query>."""
-    api_key = dev_key = bot.config.get_api_key("google")
+    api_key = bot.config.get_api_key("google")
     if not api_key:
         return "This command requires a Google Developers Console API key."
 

@@ -1,58 +1,33 @@
-"""Searches wikipedia and returns first sentence of article
-Scaevolus 2009"""
-
-import re
-
-import requests
-
 from cloudbot import hook
-from cloudbot.util import formatting
-from cloudbot.util.http import parse_xml
+from cloudbot.util import http, web
 
-api_prefix = "http://en.wikipedia.org/w/api.php"
-search_url = api_prefix + "?action=opensearch&format=xml"
-random_url = api_prefix + "?action=query&format=xml&list=random&rnlimit=1&rnnamespace=0"
-
-paren_re = re.compile(r'\s*\(.*\)$')
+search_api = u'http://en.wikipedia.org/w/api.php'
+page_url = u'https://en.wikipedia.org/wiki/'
 
 
-@hook.command("wiki", "wikipedia")
-def wiki(text, reply):
+@hook.command
+def wiki(text, message):
     """<phrase> - Gets first sentence of Wikipedia article on <phrase>."""
+    try:
+        params = { 'action': 'query', 'list': 'search',
+                   'format': 'json', 'srsearch': http.quote(text) }
+        search = http.get_json(search_api, params=params)
+    except:
+        return 'Error accessing Wikipedia API, please try again in a few minutes.'
+
+    if len(search['query']['search']) == 0:
+        return 'Your query returned no results, please check your textut and try again.'
 
     try:
-        request = requests.get(search_url, params={'search': text.strip()})
-        request.raise_for_status()
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
-        reply("Could not get Wikipedia page: {}".format(e))
-        raise
+        params = { 'format': 'json' , 'action': 'query' , 'prop': 'extracts',
+                   'exintro': True, 'explaintext': True, 'exchars' : 425,
+                   'redirects': 1, 'titles': search['query']['search'][0]['title'] }
+        data = http.get_json(search_api, params=params)
+    except:
+        return 'Error accessing Wikipedia API, please try again in a few minutes.'
 
-    x = parse_xml(request.text)
 
-    ns = '{http://opensearch.org/searchsuggest2}'
-    items = x.findall(ns + 'Section/' + ns + 'Item')
+    data = data['query']['pages'][list(data['query']['pages'].keys())[0]]
+    data['extract'] = data['extract'].strip('...').rsplit('.', 1)[0] + '.'
+    message(u'{} - {}'.format(web.try_shorten(page_url + data['title']), data['extract']))
 
-    if not items:
-        if x.find('error') is not None:
-            return 'Could not get Wikipedia page: %(code)s: %(info)s' % x.find('error').attrib
-
-        return 'No results found.'
-
-    def extract(item):
-        return [item.find(ns + i).text for i in
-                ('Text', 'Description', 'Url')]
-
-    title, desc, url = extract(items[0])
-
-    if 'may refer to' in desc:
-        title, desc, url = extract(items[1])
-
-    title = paren_re.sub('', title)
-
-    if title.lower() not in desc.lower():
-        desc = title + desc
-
-    desc = ' '.join(desc.split())  # remove excess spaces
-    desc = formatting.truncate(desc, 200)
-
-    return '{} :: {}'.format(desc, requests.utils.quote(url, ':/%'))

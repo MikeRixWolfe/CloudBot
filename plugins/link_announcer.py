@@ -8,9 +8,9 @@ from cloudbot.util import http, web
 
 url_re = re.compile(r'(?P<url>https?://(?:[^.]+\.)+?(?P<domain>[^: \/]+\.[^: \/]+)(?::\d+)?\/?\S*)', re.I)
 
-skipurls = ["youtube.com", "youtu.be", "twitter.com", "steampowered.com",
+skipurls = ["youtube.com", "youtu.be", "twitter.com", "steampowered.com", "reddit.com",
             "noxd.co", "worf.co", "illegalshit.com",
-            "is.gd", "bit.ly", "tinyurl.com", "j.mp", "goo.gl",
+            "is.gd", "bit.ly", "tinyurl.com", "j.mp", "goo.gl", "youtu.be",
             "redd.it", "imgur.com", "hastebin.com", "hasteb.in"]
 
 

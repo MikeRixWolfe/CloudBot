@@ -1,4 +1,4 @@
-import requests
+from json import dumps
 
 from cloudbot.bot import bot
 from cloudbot.util import http
@@ -28,6 +28,6 @@ def try_shorten(url):
 
 def paste(text, ext='txt'):
     """ pastes text to a hastebin server """
-    data = requests.post(paste_url + "/documents", data=text).json()
+    data = http.get_json(paste_url + "/documents", data=text, get_method='POST')
     return "{}/{}.{}".format(paste_url, data['key'], ext)
 

@@ -1,46 +1,28 @@
 import re
 import urllib.parse
 
-import requests
-from requests import HTTPError
-
 from cloudbot import hook
-from cloudbot.util import web, formatting
-from cloudbot.util.http import parse_xml
+from cloudbot.util import http, web, formatting
 
 api_url = 'http://api.wolframalpha.com/v2/query'
 query_url = 'http://www.wolframalpha.com/input/?i={}'
 
 
-@hook.command("wolframalpha", "wa", "calc", "ca", "math", "convert")
-def wolframalpha(text, bot, reply):
+@hook.command("wa")
+def wolframalpha(text, bot):
     """<query> - Computes <query> using Wolfram Alpha."""
     api_key = bot.config.get_api_key("wolframalpha")
     if not api_key:
-        return "error: missing api key"
-
-    params = {
-        'input': text,
-        'appid': api_key
-    }
-    request = requests.get(api_url, params=params)
+        return  "This command requires a Wolfram Alpha API key."
 
     try:
-        request.raise_for_status()
-    except HTTPError as e:
-        reply("Error getting query: {}".format(e.response.status_code))
-        raise
-
-    if request.status_code != requests.codes.ok:
-        return "Error getting query: {}".format(request.status_code)
-
-    result = parse_xml(request.content)
-
-    # get the URL for a user to view this query in a browser
-    short_url = web.try_shorten(query_url.format(urllib.parse.quote_plus(text)))
+        params = {'input': text, 'appid': api_key}
+        data = http.get_xml(api_url, params=params)
+    except:
+        return "WolframAlpha API error, please try again in a few minutes."
 
     pod_texts = []
-    for pod in result.xpath("//pod[@primary='true']"):
+    for pod in data.xpath("//pod[@primary='true']"):
         title = pod.attrib['title']
         if pod.attrib['id'] == 'Input':
             continue
@@ -66,4 +48,5 @@ def wolframalpha(text, bot, reply):
     if not ret:
         return 'No results.'
 
-    return "{} - {}".format(ret, short_url)
+    return ret
+

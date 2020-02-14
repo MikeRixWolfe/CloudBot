@@ -59,7 +59,10 @@ def open(url, params=None, headers=None, data=None, timeout=10, get_method=None,
     url = prepare_url(url, params)
 
     if data:
-        data = urllib.parse.urlencode(data).encode("utf-8")
+        if isinstance(data, dict):
+            data = urllib.parse.urlencode(data).encode("utf-8")
+        else:
+            data = data.encode()
 
     _request = request.Request(url, data)
 
@@ -74,18 +77,21 @@ def open(url, params=None, headers=None, data=None, timeout=10, get_method=None,
         _request.add_header('User-Agent', ua_firefox)
 
     if auth:
-        base64string = base64.b64encode('%s:%s' % (auth_keys['username'], auth_keys['password']))
-        _request.add_header("Authorization", "Basic %s" % base64string)
+        base64string = base64.b64encode('{}:{}'.format(auth_keys['username'], auth_keys['password']).encode())
+        _request.add_header("Authorization", "Basic %s" % base64string.decode())
 
     if oauth:
         nonce = oauth_nonce()
         timestamp = oauth_timestamp()
-        api_url, req_data = string.split(url, "?")
-        unsigned_request = oauth_unsigned_request(nonce, timestamp, req_data, oauth_keys['consumer'], oauth_keys['access'])
+        api_url, req_data = url.split("?")
+        unsigned_request = oauth_unsigned_request(
+            nonce, timestamp, req_data, oauth_keys['consumer'], oauth_keys['access'])
 
-        signature = oauth_sign_request("GET", api_url, req_data, unsigned_request, oauth_keys['consumer_secret'], oauth_keys['access_secret'])
+        signature = oauth_sign_request("GET", api_url, req_data, unsigned_request, oauth_keys[
+            'consumer_secret'], oauth_keys['access_secret'])
 
-        header = oauth_build_header(nonce, signature, timestamp, oauth_keys['consumer'], oauth_keys['access'])
+        header = oauth_build_header(
+            nonce, signature, timestamp, oauth_keys['consumer'], oauth_keys['access'])
         _request.add_header('Authorization', header)
 
     if cookies:
@@ -117,35 +123,37 @@ def oauth_timestamp():
 
 
 def oauth_unsigned_request(nonce, timestamp, req, consumer, token):
-    d = { 'oauth_consumer_key':consumer,
-          'oauth_nonce':nonce,
-          'oauth_signature_method':'HMAC-SHA1',
-          'oauth_timestamp':timestamp,
-          'oauth_token':token,
-          'oauth_version':'1.0' }
+    d = {
+        'oauth_consumer_key': consumer,
+        'oauth_nonce': nonce,
+        'oauth_signature_method': 'HMAC-SHA1',
+        'oauth_timestamp': timestamp,
+        'oauth_token': token,
+        'oauth_version': '1.0'
+    }
 
-    d.update(dict(parse.parse_qsl(req)))
-    unsigned_req = ''
+    d.update(urllib.parse.parse_qsl(req))
 
-    for x in sorted(d, key=lambda key: key):
-        unsigned_req += x + "=" + d[x] + "&"
+    request_items = d.items()
+    request_items = [(str(k), str(v)) for k, v in request_items]
 
-    unsigned_req = quote(unsigned_req[:-1])
-    return unsigned_req
+    return quote(urllib.parse.urlencode(sorted(request_items, key=lambda key: key[0])))
 
 
 def oauth_build_header(nonce, signature, timestamp, consumer, token):
-    d = { 'oauth_consumer_key':consumer,
-          'oauth_nonce':nonce,
-          'oauth_signature':signature,
-          'oauth_signature_method':'HMAC-SHA1',
-          'oauth_timestamp':timestamp,
-          'oauth_token':token,
-          'oauth_version':'1.0' }
+    d = {
+        'oauth_consumer_key': consumer,
+        'oauth_nonce': nonce,
+        'oauth_signature': signature,
+        'oauth_signature_method': 'HMAC-SHA1',
+        'oauth_timestamp': timestamp,
+        'oauth_token': token,
+        'oauth_version': '1.0'
+    }
 
-    header='OAuth '
+    header = 'OAuth '
 
-    for x in sorted(d, key=lambda key: key):
+    for x in sorted(d, key=lambda key: key[0]):
         header += x + '="' + d[x] + '", '
 
     return header[:-1]
@@ -153,8 +161,10 @@ def oauth_build_header(nonce, signature, timestamp, consumer, token):
 
 def oauth_sign_request(method, url, params, unsigned_request, consumer_secret, token_secret):
     key = consumer_secret + "&" + token_secret
+    key = key.encode('utf-8', 'replace')
 
     base = method + "&" + quote(url, '') + "&" + unsigned_request
+    base = base.encode('utf-8', 'replace')
 
     hash = hmac.new(key, base, sha1)
 

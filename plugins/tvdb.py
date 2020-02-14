@@ -1,172 +1,108 @@
-import datetime
-
-import requests
+from datetime import datetime
+from json import dumps
 
 from cloudbot import hook
 from cloudbot.bot import bot
-from cloudbot.util.http import parse_xml
-
-base_url = "http://thetvdb.com/api/"
+from cloudbot.util import http
 
 
-def get_episodes_for_series(series_name, api_key):
-    res = {"error": None, "ended": False, "episodes": None, "name": None}
-    # http://thetvdb.com/wiki/index.php/API:GetSeries
-
-    try:
-        params = {'seriesname': series_name}
-        request = requests.get(base_url + 'GetSeries.php', params=params)
-        request.raise_for_status()
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
-        res["error"] = "error contacting thetvdb.com"
-        return res
-
-    query = parse_xml(request.content)
-    series_id = query.xpath('//seriesid/text()')
-
-    if not series_id:
-        res["error"] = "Unknown TV series. (using www.thetvdb.com)"
-        return res
-
-    series_id = series_id[0]
-
-    try:
-        _request = requests.get(base_url + '%s/series/%s/all/en.xml' % (api_key, series_id))
-        _request.raise_for_status()
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError):
-        res["error"] = "error contacting thetvdb.com"
-        return res
-
-    series = parse_xml(_request.content)
-    try:
-        series_name = series.xpath('//SeriesName/text()')[0]
-    except LookupError:
-        series_name = series.xpath('//SeriesName/text()')
-
-    try:
-        if series.xpath('//Status/text()')[0] == 'Ended':
-            res["ended"] = True
-    except LookupError:
-        if series.xpath('//Status/text()') == 'Ended':
-            res["ended"] = True
-
-    res["episodes"] = series.xpath('//Episode')
-    res["name"] = series_name
-    return res
+base_url = "https://api.thetvdb.com"
+login_url = base_url + "/login"
+search_url = base_url + "/search/series"
+series_url = base_url + "/series/{}"
+episodes_url = series_url + "/episodes"
 
 
-def get_episode_info(episode):
-    first_aired = episode.findtext("FirstAired")
-
-    try:
-        air_date = datetime.datetime.strptime(first_aired, '%Y-%m-%d').date()
-    except (ValueError, TypeError):
-        return None
-
-    episode_num = "S%02dE%02d" % (int(episode.findtext("SeasonNumber")),
-                                  int(episode.findtext("EpisodeNumber")))
-
-    episode_name = episode.findtext("EpisodeName")
-    # in the event of an unannounced episode title, users either leave the
-    # field out (None) or fill it with TBA
-    if episode_name == "TBA":
-        episode_name = None
-
-    episode_desc = '{}'.format(episode_num)
-    if episode_name:
-        episode_desc += ' - {}'.format(episode_name)
-
-    return first_aired, air_date, episode_desc
+def get_token(api_key):
+	return http.get_json("https://api.thetvdb.com/login", headers={'Content-Type':'application/json'},
+		get_method='POST', data=dumps(api_key))['token']
 
 
-def get_data(text):
-    api_key = bot.config.get_api_key("tvdb")
-    if api_key is None:
-        return (None, None, None), "error: no api key set"
+def get_series_info(token, seriesname):
+	head = {'Authorization': 'Bearer ' + token }
 
-    data = get_episodes_for_series(text, api_key)
+	params={'name': http.quote(seriesname)}
+	series = http.get_json(search_url, headers=head, params=params)['data']
+	_series = [s for s in series if s['network'] is not None]
 
-    if data["error"]:
-        return (None, None, None), data["error"]
+	if len(_series) > 0:
+		seriesid = _series[0]['id']
+	else:
+		seriesid = series[0]['id']
 
-    series_name = data["name"]
-    ended = data["ended"]
-    episodes = data["episodes"]
-
-    return (series_name, ended, episodes), None
+	return http.get_json(series_url.format(seriesid), headers=head)['data']
 
 
-@hook.command()
-@hook.command('tv')
-def tv_next(text):
-    """<series> - Get the next episode of <series>."""
-    (series_name, ended, episodes), err = get_data(text)
-    if err:
-        return err
+def get_series_eps(token, seriesid):
+	head = {'Authorization': 'Bearer ' + token }
 
-    if ended:
-        return "{} has ended.".format(series_name)
+	episodes = http.get_json(episodes_url.format(seriesid), headers=head)
 
-    next_eps = []
-    today = datetime.date.today()
+	if episodes['links']['last'] > 1:
+		params = {'page': episodes['links']['last']}
+		episodes = http.get_json(episodes_url.format(seriesid), headers=head)
 
-    for episode in reversed(episodes):
-        ep_info = get_episode_info(episode)
-
-        if ep_info is None:
-            continue
-
-        (first_aired, air_date, episode_desc) = ep_info
-
-        if air_date > today:
-            next_eps = ['{} ({})'.format(first_aired, episode_desc)]
-        elif air_date == today:
-            next_eps = ['Today ({})'.format(episode_desc)] + next_eps
-        else:
-            # we're iterating in reverse order with newest episodes last
-            # so, as soon as we're past today, break out of loop
-            break
-
-    if not next_eps:
-        return "There are no new episodes scheduled for {}.".format(series_name)
-
-    if len(next_eps) == 1:
-        return "The next episode of {} airs {}".format(series_name, next_eps[0])
-
-    return "The next episodes of {}: {}".format(
-        series_name, ', '.join(next_eps)
-    )
+	return episodes['data']
 
 
-@hook.command()
-@hook.command('tv_prev')
-def tv_last(text):
-    """<series> - Gets the most recently aired episode of <series>."""
-    (series_name, ended, episodes), err = get_data(text)
-    if err:
-        return err
+@hook.command
+def tvnext(text, message):
+	"""tvnext <series> - Get the next episode of <series>."""
+	api_key = bot.config.get_api_key("tvdb")
+	if not api_key:
+		return "This command requires a TVDB API key."
 
-    prev_ep = None
-    today = datetime.date.today()
+	token = get_token(api_key)
 
-    for episode in reversed(episodes):
-        ep_info = get_episode_info(episode)
+	try:
+		info = get_series_info(token, text)
+	except:
+		return "Series not found."
 
-        if ep_info is None:
-            continue
+	eps = get_series_eps(token, info['id'])
 
-        (first_aired, air_date, episode_desc) = ep_info
+	info['year'] = info.get('firstAired', '')[:4]
+	info['network'] = info.get('network') or 'Unavailable'
+	nextep = list(filter(lambda x: datetime.strptime(x.get('firstAired') or '1969-12-31','%Y-%m-%d') > datetime.now(), eps))
 
-        if air_date < today:
-            # iterating in reverse order, so the first episode encountered
-            # before today was the most recently aired
-            prev_ep = '{} ({})'.format(first_aired, episode_desc)
-            break
+	if len(nextep) >= 1:
+		nextep = min(nextep, key=lambda x: (x['airedSeason']*100)+x['airedEpisodeNumber'])
 
-    if not prev_ep:
-        return "There are no previously aired episodes for {}.".format(series_name)
+	if nextep:
+		info.update(nextep)
+		info['overview'] = info['overview'] or 'No description available'
 
-    if ended:
-        return '{} ended. The last episode aired {}.'.format(series_name, prev_ep)
+		message('"{seriesName}" ({network} {year}) next episode airs {firstAired} at {airsTime} Eastern. S{airedSeason}E{airedEpisodeNumber} "{episodeName}": {overview}'.format(**info))
+	elif info['status'] == 'Ended':
+		message('{seriesName} ({network} {year}) has ended.'.format(**info))
+	else:
+		message('{seriesName} ({network} {year}) has no scheduled episodes. Show status: {status}'.format(**info))
 
-    return "The last episode of {} aired {}.".format(series_name, prev_ep)
+
+@hook.command
+def tvlast(text, message):
+	"""tvlast <series> - Gets the most recently aired episode of <series>."""
+	api_key = bot.config.get_api_key("tvdb")
+	if not api_key:
+		return "This command requires a TVDB API key."
+
+	token = get_token(api_key)
+
+	try:
+		info = get_series_info(token, text)
+	except:
+		return "Series not found."
+
+	eps = get_series_eps(token, info['id'])
+
+	info['year'] = info['firstAired'][:4]
+	info['network'] = info['network'] or 'Unavailable'
+	lastep = max(eps, key=lambda x: (x['airedSeason']*100)+x['airedEpisodeNumber'])
+
+	if len(eps) >= 1:
+		info.update(lastep)
+		info['overview'] = info['overview'] or 'No description available'
+
+		message('"{seriesName}" ({network} {year}) last aired {firstAired} at {airsTime} Eastern. S{airedSeason}E{airedEpisodeNumber} "{episodeName}": {overview}'.format(**info))
+	else:
+		message('{seriesName} ({network} {year}) has yet to air an episode. Show status: {status}'.format(**info))

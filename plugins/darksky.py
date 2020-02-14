@@ -64,7 +64,7 @@ def strftime(time):
 
 
 def geocode(text):
-    api_key = bot.config.get_api_key("google").get('access', None)
+    api_key = bot.config.get_api_key("google").get('access')
     if not api_key:
         raise Exception("This command requires a Google Developers Console API key.")
 

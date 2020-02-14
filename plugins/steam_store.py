@@ -1,20 +1,13 @@
 import re
 
-import requests
-
 from cloudbot import hook
-from cloudbot.util import web, formatting
-
-# CONSTANTS
-from cloudbot.util.http import parse_soup
+from cloudbot.util import http, web, formatting
 
 steam_re = re.compile(r'.*://store.steampowered.com/app/([0-9]+)?.*', re.I)
 
 API_URL = "http://store.steampowered.com/api/appdetails/"
 STORE_URL = "http://store.steampowered.com/app/{}/"
 
-
-# OTHER FUNCTIONS
 
 def format_game(app_id, show_url=True):
     """
@@ -25,12 +18,10 @@ def format_game(app_id, show_url=True):
     params = {'appids': app_id}
 
     try:
-        request = requests.get(API_URL, params=params, timeout=15)
-        request.raise_for_status()
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
-        return "Could not get game info: {}".format(e)
+        data = http.get_json(API_URL, params=params, timeout=15)
+    except Exception as e:
+        return f"Could not get game info: {e}"
 
-    data = request.json()
     game = data[app_id]["data"]
 
     # basic info
@@ -78,31 +69,27 @@ def format_game(app_id, show_url=True):
     return " - ".join(out)
 
 
-# HOOK FUNCTIONS
-
 @hook.command()
-def steam(text, reply):
+def steam(text, message):
     """<query> - Search for specified game/trailer/DLC"""
     params = {'term': text.strip().lower()}
 
     try:
-        request = requests.get("http://store.steampowered.com/search/", params=params)
-        request.raise_for_status()
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
-        reply("Could not get game info: {}".format(e))
-        raise
+        data = http.get_soup("http://store.steampowered.com/search/", params=params)
+    except Exception as e:
+        return "Could not get game info: {}".format(e)
 
-    soup = parse_soup(request.text, from_encoding="utf-8")
-    result = soup.find('a', {'class': 'search_result_row'})
+    result = data.find('a', {'class': 'search_result_row'})
 
     if not result:
         return "No game found."
 
     app_id = result['data-ds-appid']
-    return format_game(app_id)
+    message(format_game(app_id))
 
 
 @hook.regex(steam_re)
-def steam_url(match):
+def steam_url(match, message):
     app_id = match.group(1)
-    return format_game(app_id, show_url=False)
+    message(format_game(app_id, show_url=False))
+

@@ -2,6 +2,7 @@ import re
 import random
 
 from cloudbot import hook
+from cloudbot.bot import bot
 from cloudbot.util import http, formatting
 
 API_URL = 'http://api.wordnik.com/v4/'

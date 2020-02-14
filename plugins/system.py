@@ -13,12 +13,6 @@ from cloudbot.util.filesize import size as format_bytes
 import cloudbot
 
 
-def _get_repo_link(bot):
-    return bot.config.get(
-        'repo_link', 'https://github.com/TotallyNotRobots/CloudBot/'
-    )
-
-
 @hook.command(autohelp=False)
 def about(text, conn, bot):
     """- Gives information about CloudBot. Use .about license for licensing information"""
@@ -32,7 +26,7 @@ def about(text, conn, bot):
 
 
 @hook.command(autohelp=False)
-def system(reply, message):
+def system(message):
     """- Retrieves information about the host system."""
 
     # Get general system info
@@ -42,7 +36,7 @@ def system(reply, message):
     sys_architecture = '-'.join(platform.architecture())
     sys_cpu_count = platform.machine()
 
-    reply(
+    message(
         "OS: \x02{}\x02, "
         "Python: \x02{} {}\x02, "
         "Architecture: \x02{}\x02 (\x02{}\x02)".format(
@@ -75,10 +69,3 @@ def system(reply, message):
             )
         )
 
-
-@hook.command("sauce", "source", autohelp=False)
-def sauce(bot):
-    """- Returns a link to the source"""
-    return "Check out my source code! I am a fork of cloudbot: " \
-           "https://github.com/CloudBotIRC/CloudBot/ and my source is here: " \
-           "{}".format(_get_repo_link(bot))

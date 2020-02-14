@@ -1,235 +1,116 @@
-import html
 import random
 import re
-from datetime import datetime
-
-import tweepy
+import time
+from time import strptime, strftime
+from urllib.parse import quote
 
 from cloudbot import hook
 from cloudbot.bot import bot
-from cloudbot.util import timeformat
-
-TWITTER_RE = re.compile(r"(?:(?:www.twitter.com|twitter.com)/(?:[-_a-zA-Z0-9]+)/status/)([0-9]+)", re.I)
+from cloudbot.util import http, web
 
 
-def _get_conf_value(conf, field):
-    return conf['plugins']['twitter'][field]
+twitter_re = re.compile(r'https?://(?:mobile.)?twitter.com/(.+?)/status/(\d+)', re.I)
 
+@hook.command
+def twitter(text, message):
+    """<user|user n|id|#search|#search n> - Get <user>'s last/<n>th tweet/get tweet <id>/do <search>/get <n>th <search> result."""
+    api_key = bot.config.get_api_key("twitter")
+    if not api_key:
+        return "This command requires a Twitter API key."
 
-def get_config(conn, field, default):
-    """
-    :type conn: cloudbot.client.Client
-    :type field: str
-    :type default: Any
-    """
-    try:
-        return _get_conf_value(conn.config, field)
-    except LookupError:
-        try:
-            return _get_conf_value(conn.bot.config, field)
-        except LookupError:
-            return default
+    if not isinstance(api_key, dict) or any(key not in api_key for key in
+                                            ('consumer', 'consumer_secret', 'access', 'access_secret')):
+        return "error: api keys not set"
 
-
-def get_tweet_mode(conn, default='extended'):
-    return get_config(conn, 'tweet_mode', default)
-
-
-def make_api():
-    consumer_key = bot.config.get_api_key("twitter_consumer_key")
-    consumer_secret = bot.config.get_api_key("twitter_consumer_secret")
-
-    oauth_token = bot.config.get_api_key("twitter_access_token")
-    oauth_secret = bot.config.get_api_key("twitter_access_secret")
-
-    if not all((consumer_key, consumer_secret, oauth_token, oauth_secret)):
-        return None
-
-    auth = tweepy.OAuthHandler(consumer_key, consumer_secret)
-    auth.set_access_token(oauth_token, oauth_secret)
-
-    return tweepy.API(auth)
-
-
-class APIContainer:
-    api = None
-
-
-container = APIContainer()
-
-IGNORE_ERRORS = [
-    # User not found
-    50,
-    # User has been suspended
-    63,
-    # No status found with that ID
-    144,
-    # Private tweet
-    179,
-]
-
-
-@hook.on_start
-def set_api():
-    container.api = make_api()
-
-
-@hook.regex(TWITTER_RE)
-def twitter_url(match, conn):
-    # Find the tweet ID from the URL
-    tweet_id = match.group(1)
-
-    # Get the tweet using the tweepy API
-    tw_api = container.api
-    if tw_api is None:
-        return
-
-    try:
-        tweet = tw_api.get_status(tweet_id, tweet_mode=get_tweet_mode(conn))
-    except tweepy.TweepError as e:
-        if e.api_code in IGNORE_ERRORS:
-            return
-
-        raise
-
-    user = tweet.user
-
-    return format_tweet(tweet, user)
-
-
-@hook.command("twitter", "tw", "twatter")
-def twitter(text, reply, conn):
-    """<user> [n] - Gets last/[n]th tweet from <user>"""
-
-    tw_api = container.api
-    if tw_api is None:
-        return "This command requires a twitter API key."
-
-    tweet_mode = get_tweet_mode(conn)
+    getting_id = False
+    doing_search = False
+    index_specified = False
 
     if re.match(r'^\d+$', text):
-        # user is getting a tweet by id
-
+        getting_id = True
+        request_url = "https://api.twitter.com/1.1/statuses/show.json?id=%s" % text
+    else:
         try:
-            # get tweet by id
-            tweet = tw_api.get_status(text, tweet_mode=tweet_mode)
-        except tweepy.error.TweepError as e:
-            if "404" in e.reason:
-                reply("Could not find tweet.")
-            else:
-                reply("Error: {}".format(e.reason))
+            text, index = re.split('\s+', text, 1)
+            index = int(index.strip('-'))
+            index_specified = True
+        except ValueError:
+            index = 0
+        if index < 0:
+            index = 0
+        if index >= 20:
+            return 'Error: only supports up to the 20th tweet'
 
-            raise
-
-        user = tweet.user
-
-    elif re.match(r'^\w{1,15}$', text) or re.match(r'^\w{1,15}\s+\d+$', text):
-        # user is getting a tweet by name
-
-        if text.find(' ') == -1:
-            username = text
-            tweet_number = 0
+        if re.match(r'^#', text):
+            doing_search = True
+            request_url = "https://api.twitter.com/1.1/search/tweets.json"
+            params = {'q': quote(text)}
         else:
-            username, tweet_number = text.split()
-            tweet_number = int(tweet_number) - 1
+            request_url = "https://api.twitter.com/1.1/statuses/user_timeline.json"
+            params = {'screen_name': text, 'exclude_replies': True, 'include_rts': False, 'tweet_mode': 'extended'}
 
-        if tweet_number > 200:
-            return "This command can only find the last \x02200\x02 tweets."
+    try:
+        tweet = http.get_json(request_url, params=params, oauth=True, oauth_keys=api_key)
+    except http.HTTPError as e:
+        errors = {400: 'bad request (ratelimited?)',
+                  401: 'unauthorized (private)',
+                  403: 'forbidden',
+                  404: 'invalid user/id',
+                  500: 'twitter is broken',
+                  502: 'twitter is down ("getting upgraded")',
+                  503: 'twitter is overloaded (lol, RoR)',
+                  410: 'twitter shut off api v1.'}
+        if e.code == 404:
+            return 'Error: invalid ' + ['username', 'tweet id'][getting_id]
+        if e.code in errors:
+            return 'Error: ' + errors[e.code]
+        return 'Error: unknown %s' % e.code
 
+    if doing_search:
         try:
-            # try to get user by username
-            user = tw_api.get_user(username, tweet_mode=tweet_mode)
-        except tweepy.error.TweepError as e:
-            if "404" in e.reason:
-                reply("Could not find user.")
-            else:
-                reply("Error: {}".format(e.reason))
-            raise
+            tweet = tweet["statuses"]
+            if not index_specified:
+                index = random.randint(0, len(tweet) - 1)
+        except:
+            return 'Error: no results'
 
-        # get the users tweets
-        user_timeline = tw_api.user_timeline(
-            id=user.id, count=tweet_number + 1, tweet_mode=tweet_mode
-        )
-
-        # if the timeline is empty, return an error
-        if not user_timeline:
-            return "The user \x02{}\x02 has no tweets.".format(user.screen_name)
-
-        # grab the newest tweet from the users timeline
+    if not getting_id:
         try:
-            tweet = user_timeline[tweet_number]
+            tweet = tweet[index]
         except IndexError:
-            tweet_count = len(user_timeline)
-            return "The user \x02{}\x02 only has \x02{}\x02 tweets.".format(user.screen_name, tweet_count)
+            return 'Error: not that many tweets found'
 
-    elif re.match(r'^#\w+$', text):
-        # user is searching by hashtag
-        search = tw_api.search(text, tweet_mode=tweet_mode)
-
-        if not search:
-            return "No tweets found."
-
-        tweet = random.choice(search)
-        user = tweet.user
+    tweet['full_text'] = http.h.unescape(tweet['full_text'])
+    if tweet['full_text'].count('\n') > 0:
+        tweet['full_text'] = re.sub(r'(.*?)(https:\/\/t.co\/.*)', r'\1\n\2', tweet['full_text'])
+        message(u'{} (@{}) on Twitter:'.format(tweet['user']['name'], tweet['user']['screen_name']))
+        for line in tweet['full_text'].split('\n'):
+            if len(line.strip()) > 0:
+                message(u'   {}'.format(line))
     else:
-        # ???
-        return "Invalid Input"
-
-    return format_tweet(tweet, user)
+        message(u'{} (@{}) on Twitter: "{}"'.format(tweet['user']['name'],
+            tweet['user']['screen_name'], tweet['full_text'].replace('\n', ' | ')))
 
 
-# Format the return the text of the tweet
-def format_tweet(tweet, user):
+@hook.regex(twitter_re)
+def twitter_url(match, message):
     try:
-        text = tweet.full_text
-    except AttributeError:
-        text = tweet.text
+        api_key = bot.config.get_api_key("twitter")
+        request_url = 'https://api.twitter.com/1.1/statuses/show.json'
+        params = {'id': match.group(2), 'tweet_mode': 'extended'}
+        tweet = http.get_json(request_url, params=params, oauth=True, oauth_keys=api_key)
 
-    text = " ".join(text.split())
-
-    if user.verified:
-        prefix = "\u2713"
-    else:
-        prefix = ""
-
-    time = timeformat.time_since(tweet.created_at, datetime.utcnow())
-
-    return "{}@\x02{}\x02 ({}): {} ({} ago)".format(prefix, user.screen_name, user.name, html.unescape(text), time)
-
-
-@hook.command("twuser", "twinfo")
-def twuser(text, reply):
-    """<user> - Get info on the Twitter user <user>"""
-
-    tw_api = container.api
-    if tw_api is None:
-        return
-
-    try:
-        # try to get user by username
-        user = tw_api.get_user(text)
-    except tweepy.error.TweepError as e:
-        if "404" in e.reason:
-            reply("Could not find user.")
+        tweet['full_text'] = http.h.unescape(tweet['full_text'])
+        if tweet['full_text'].count('\n') > 0:
+            tweet['full_text'] = re.sub(r'(.*?)(https:\/\/t.co\/.*)', r'\1\n\2', tweet['full_text'])
+            message(u'{} - {} (@{}) on Twitter:'.format(web.try_shorten(match.group(0)),
+                tweet['user']['name'], tweet['user']['screen_name']))
+            for line in tweet['full_text'].split('\n'):
+                if len(line.strip()) > 0:
+                    message(u'   {}'.format(line))
         else:
-            reply("Error: {}".format(e.reason))
-        raise
+            message(u'{} - {} (@{}) on Twitter: "{}"'.format(web.try_shorten(match.group(0)),
+                tweet['user']['name'], tweet['user']['screen_name'], tweet['full_text'].replace('\n', ' | ')))
+    except:
+        message("{} - Twitter".format(web.try_shorten(match.group(0))))
 
-    if user.verified:
-        prefix = "\u2713"
-    else:
-        prefix = ""
-
-    if user.location:
-        loc_str = " is located in \x02{}\x02 and".format(user.location)
-    else:
-        loc_str = ""
-
-    if user.description:
-        desc_str = " The users description is \"{}\"".format(user.description)
-    else:
-        desc_str = ""
-
-    return "{}@\x02{}\x02 ({}){} has \x02{:,}\x02 tweets and \x02{:,}\x02 followers.{}" \
-           "".format(prefix, user.screen_name, user.name, loc_str, user.statuses_count, user.followers_count,
-                     desc_str)

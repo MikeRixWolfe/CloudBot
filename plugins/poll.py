@@ -12,7 +12,6 @@ active_polls = defaultdict({}.copy)
 @hook.command(autohelp=True)
 def poll(text, nick, chan, message):
     """<description>[: choice1, choice2, ..., choice n] - Begins a poll if you do not already have an active poll; choices default to [yes|no]; end poll and get results with '.poll close'."""
-    global active_polls
     active_polls[chan]  # init
 
     if text == "close":
@@ -47,7 +46,6 @@ def poll(text, nick, chan, message):
 @hook.command(autohelp=False)
 def polls(text, chan, message):
     """[user] - Gets a list of active polls, or information on a specific poll."""
-    global active_polls
     active_polls[chan]  # init
 
     if text:
@@ -62,7 +60,6 @@ def polls(text, chan, message):
 @hook.command(autohelp=True)
 def vote(text, nick, chan):
     """<poll owner> <choice> - Vote on a poll; responds on error and silently records on success."""
-    global active_polls
     active_polls[chan]  # init
 
     if len(text.split(' ', 1)) == 2:

@@ -1,9 +1,6 @@
-import requests
-from requests import HTTPError
-
 from cloudbot import hook
 from cloudbot.bot import bot
-from cloudbot.util import web
+from cloudbot.util import http, web
 
 api_url = "https://translate.yandex.net/api/v1.5/tr.json/"
 lang_dict = {}
@@ -21,9 +18,7 @@ def load_key():
         'key': api_key,
         'ui': 'en'
     }
-    r = requests.get(url, params=params)
-    r.raise_for_status()
-    data = r.json()
+    data = http.get_json(url, params=params)
     lang_dict.clear()
     lang_dir.clear()
     lang_dict.update(dict((v, k) for k, v in data['langs'].items()))
@@ -61,9 +56,7 @@ def list_langs():
         'key': api_key,
         'ui': 'en'
     }
-    r = requests.get(url, params=params)
-    r.raise_for_status()
-    data = r.json()
+    data = http.get_json(url, params=params)
     langs = data['langs']
     out = "Language Codes:"
     out += ",".join("\n{}-{}".format(key, value) for (key, value) in sorted(langs.items()))
@@ -104,15 +97,10 @@ def trans(text, reply, event):
     }
 
     try:
-        r = requests.get(url, params=params)
-        r.raise_for_status()
-    except HTTPError as e:
-        reply(check_code(e.response.status_code))
-        raise
+        data = http.get_json(url, params=params)
     except Exception:
         reply("Unknown error occurred.")
         raise
 
-    data = r.json()
     out = "Translation ({}): {}".format(data['lang'], data['text'][0])
     return out

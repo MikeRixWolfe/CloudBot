@@ -2,10 +2,9 @@ import datetime
 import re
 import time
 
-import requests
-
 from cloudbot import hook
 from cloudbot.bot import bot
+from cloudbot.util import http
 
 # Define some constants
 base_url = 'https://maps.googleapis.com/maps/api/'
@@ -14,7 +13,6 @@ timezone_api = base_url + 'timezone/json'
 
 # Change this to a ccTLD code (eg. uk, nz) to make results more targeted towards that specific country.
 # <https://developers.google.com/maps/documentation/geocoding/#RegionCodes>
-bias = None
 
 
 def check_status(status, api):
@@ -45,8 +43,8 @@ def check_status(status, api):
 @hook.command("time")
 def time_command(text, reply):
     """<location> - Gets the current time in <location>."""
-    dev_key = bot.config.get_api_key("google_dev_key")
-    if not dev_key:
+    api_key = bot.config.get_api_key("google").get('access')
+    if not api_key:
         return "This command requires a Google Developers Console API key."
 
     if text.lower().startswith("utc") or text.lower().startswith("gmt"):
@@ -69,11 +67,12 @@ def time_command(text, reply):
             return "\x02{}\x02 ({})".format(formatted_time, timezone)
 
     # Use the Geocoding API to get co-ordinates from the input
-    params = {"address": text, "key": dev_key}
+    params = {"address": text, "key": api_key}
+    bias = bot.config.get('region_bias_cc')
     if bias:
         params['region'] = bias
 
-    json = requests.get(geocode_api, params=params).json()
+    json = http.get_json(geocode_api, params=params)
 
     error = check_status(json['status'], "geocoding")
     if error:
@@ -89,8 +88,8 @@ def time_command(text, reply):
 
     epoch = time.time()
 
-    params = {"location": formatted_location, "timestamp": epoch, "key": dev_key}
-    json = requests.get(timezone_api, params=params).json()
+    params = {"location": formatted_location, "timestamp": epoch, "key": api_key}
+    json = http.get_json(timezone_api, params=params)
 
     error = check_status(json['status'], "timezone")
     if error:
@@ -108,31 +107,3 @@ def time_command(text, reply):
 
     return "\x02{}\x02 - {} ({})".format(formatted_time, location_name, timezone)
 
-
-@hook.command(autohelp=False)
-def beats(text):
-    """- Gets the current time in .beats (Swatch Internet Time)."""
-
-    if text.lower() == "wut":
-        return "Instead of hours and minutes, the mean solar day is divided " \
-               "up into 1000 parts called \".beats\". Each .beat lasts 1 minute and" \
-               " 26.4 seconds. Times are notated as a 3-digit number out of 1000 af" \
-               "ter midnight. So, @248 would indicate a time 248 .beats after midni" \
-               "ght representing 248/1000 of a day, just over 5 hours and 57 minute" \
-               "s. There are no timezones."
-
-    if text.lower() == "guide":
-        return "1 day = 1000 .beats, 1 hour = 41.666 .beats, 1 min = 0.6944 .beats, 1 second = 0.01157 .beats"
-
-    t = time.gmtime()
-    h, m, s = t.tm_hour, t.tm_min, t.tm_sec
-
-    utc = 3600 * h + 60 * m + s
-    bmt = utc + 3600  # Biel Mean Time (BMT)
-
-    beat = bmt / 86.4
-
-    if beat > 1000:
-        beat -= 1000
-
-    return "Swatch Internet Time: @%06.2f" % beat

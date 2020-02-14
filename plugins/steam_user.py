@@ -1,8 +1,5 @@
-import requests
-
 from cloudbot import hook
-from cloudbot.util import formatting
-from cloudbot.util.http import parse_xml
+from cloudbot.util import http, formatting
 
 API_URL = "http://steamcommunity.com/id/{}/"
 ID_BASE = 76561197960265728
@@ -58,12 +55,9 @@ def get_data(user):
 
     # get the page
     try:
-        request = requests.get(API_URL.format(user), params=params, headers=headers)
-        request.raise_for_status()
-    except (requests.exceptions.HTTPError, requests.exceptions.ConnectionError) as e:
-        raise SteamError("Could not get user info: {}".format(e))
-
-    profile = parse_xml(request.content)
+        profile = http.get_xml(API_URL.format(user), params=params, headers=headers)
+    except Exception as e:
+        raise SteamError("Could not get user info: {e}".format(e))
 
     try:
         data["name"] = profile.find('steamID').text
