@@ -102,7 +102,7 @@ def _setup():
 
         dict_config["loggers"]["cloudbot"]["handlers"].append("file")
 
-    if logging_config.get("console_debug", False):
+    if logging_config.get("console_log_debug", False):
         dict_config["handlers"]["console"]["level"] = "DEBUG"
         dict_config["loggers"]["asyncio"] = {
             "level": "DEBUG",
@@ -111,7 +111,7 @@ def _setup():
         if file_log:
             dict_config["loggers"]["asyncio"]["handlers"].append("file")
 
-    if logging_config.get("file_debug", False):
+    if logging_config.get("file_log_debug", False):
         dict_config["handlers"]["debug_file"] = {
             "class": "logging.handlers.RotatingFileHandler",
             "maxBytes": 1000000,
