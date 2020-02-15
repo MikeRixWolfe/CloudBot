@@ -54,6 +54,7 @@ target/
 # Cloudbot
 persist/
 logs/
+tmp/
 config.json
 *.db
 *.mmdb
