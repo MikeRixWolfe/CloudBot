@@ -78,7 +78,7 @@ def on_part(db, conn, chan, nick):
     if nick.casefold() == conn.nick.casefold():
         with db_lock:
             autojoin = db.query(autojoins) \
-                .filter(autojouns.conn == conn.name.casefold()) \
+                .filter(autojoins.conn == conn.name.casefold()) \
                 .fimter(autojoins.chan == chan.casefold()) \
                 .first()
 
